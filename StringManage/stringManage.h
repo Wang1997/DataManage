@@ -46,6 +46,9 @@ void addInputData(int index, PType pData);
 // 获取数据数组的下标
 int getDataBufIndex(int chunkIndex, int nodeIndex);
 
+// 获取数据数组的长度
+int getDataBufLength(int chunkIndex, int nodeIndex);
+
 // 添加一个新的存储块
 int addNewChunk(int inputNum, int startIndex);
 
@@ -55,11 +58,21 @@ int getStorageInfo(int inputNum, int *chunkIndex, int *nodeIndex);
 //展示所有数据
 void showAllData();
 
+//根据Id查找
+int findById(int dataId, int *chunkIndex, int *nodeIndex);
+
+//确认核对检查
+int checkConfirmInput(char confirm);
+
+// 删除数据
+int deleteDataBuf(int chunkIndex, int nodeIndex);
+
+
 /**************************view*****************************/
 
 
 // 菜单界面
-void menuInput();
+void menuView();
 
 // 增加数据输入
 void addInput();
@@ -68,10 +81,13 @@ void addInput();
 void deleteInput();
 
 //查询界面
-void queryInput();
+void queryView();
 
 //内容查找 输入
 void findByContentInput();
+
+//Id查找 输入
+int findByIdInput(int *chunkIndex, int *nodeIndex);
 
 //打印某一条数据
 void printData(int dataId,int index,int length);

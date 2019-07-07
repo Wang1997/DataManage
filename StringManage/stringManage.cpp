@@ -11,7 +11,7 @@ int g_chunkNum = 0;//数据信息记录块个数
 int main(int argc, char *argv[])
 {
     init();
-    menuInput();
+    menuView();
     quit();
     system("pause");
     return 0;
@@ -29,7 +29,11 @@ void init()
 //退出
 void quit()
 {
-    
+    //释放堆内存
+    for (int i = 0; i < g_chunkNum; ++i)
+    {
+        free(g_chunkInfoArr[i].nodeArr);
+    }
 }
 
 // 添加输入检查
@@ -55,6 +59,12 @@ int getDataBufIndex(int chunkIndex,int nodeIndex)
         index += g_chunkInfoArr[chunkIndex].nodeArr[i].size;
     }
     return index;
+}
+
+// 获取数据数组的长度
+int getDataBufLength(int chunkIndex, int nodeIndex)
+{
+    return g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].length;
 }
 
 // 添加一个新的存储块
@@ -92,6 +102,7 @@ int getStorageInfo(int inputNum,int *chunkIndex,int *nodeIndex)
         //遍历块中节点
         for (int j = 0; j < g_chunkInfoArr[i].nodeNum; ++j)
         {
+            
             space = g_chunkInfoArr[i].nodeArr[j].size - 
                                g_chunkInfoArr[i].nodeArr[j].length; //空闲区域
             if (space >= inputNum)// 找到符合条件的节点
@@ -111,7 +122,7 @@ int getStorageInfo(int inputNum,int *chunkIndex,int *nodeIndex)
     
     if (!findFlag)
     {//开辟新块
-        if (!addNewChunk(inputNum,totalSize))
+        if (!addNewChunk(inputNum, totalSize))
         {
             return 0;
         }
@@ -121,13 +132,16 @@ int getStorageInfo(int inputNum,int *chunkIndex,int *nodeIndex)
         g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex].length = inputNum;
         g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex].size = inputNum;
     }
-    else
-    {//开辟新节点
-        for (int j = g_chunkInfoArr[*chunkIndex].nodeNum; j > *nodeIndex + 1; --j)
+    else if(g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex].length)
+    {//原先有数据,需开辟新节点 扩展往后
+        int cpySize = (g_chunkInfoArr[*chunkIndex].nodeNum - *nodeIndex - 1) * sizeof(Node);
+        if (cpySize > 0) //越界考虑
         {
-            g_chunkInfoArr[*chunkIndex].nodeArr[j] = 
-                            g_chunkInfoArr[*chunkIndex].nodeArr[j-1];
+            memmove(&g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex + 2],
+                &g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex + 1],
+                cpySize); //整体往后移动一个
         }
+        
         //割空间
         g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex].size = 
                            g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex].length;
@@ -136,6 +150,10 @@ int getStorageInfo(int inputNum,int *chunkIndex,int *nodeIndex)
         g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex].length = inputNum;
         g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex].size = space;
         g_chunkInfoArr[*chunkIndex].nodeNum++; //节点个数++;
+    }
+    else
+    {
+        g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex].length = inputNum;
     }
     return 1;
 }
@@ -153,21 +171,102 @@ void showAllData()
         for (int j = 0; j < g_chunkInfoArr[i].nodeNum; ++j)
         {
             ++dataId;
-            if (!g_chunkInfoArr[i].nodeArr[j].length) //已删除
-                continue;
-            printData(dataId, index, g_chunkInfoArr[i].nodeArr[j].length);
+            if (g_chunkInfoArr[i].nodeArr[j].length) //非无效数据打印
+            {
+                printData(dataId, index, g_chunkInfoArr[i].nodeArr[j].length);
+            }
             index += g_chunkInfoArr[i].nodeArr[j].size;
         }
     }
     
 }
 
+//根据Id查找
+int findById(int dataId, int *chunkIndex, int *nodeIndex)
+{
+    if(dataId <= 0) //输入数据检查
+        return 0;
 
+    int calcId = 0;
+    //遍历块 
+    for (int i = 0; i < g_chunkNum; ++i)
+    {
+        calcId += g_chunkInfoArr[i].nodeNum;
+        if (calcId >= dataId)
+        {
+            *chunkIndex = i;
+            *nodeIndex = dataId - (calcId - g_chunkInfoArr[i].nodeNum) - 1; //下标需-1
+            // 判断数据有效性
+            if (!g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex].length)
+                return 0;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+//确认核对检查
+int checkConfirmInput(char confirm) 
+{
+    if(confirm != 'y' && confirm != 'Y')
+        return 0;
+    return 1;
+}
+
+// 删除数据
+int deleteDataBuf(int chunkIndex, int nodeIndex)
+{
+    //删除
+    g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].length = 0;
+
+    //块内最近节点索引合并(约定往前)
+    //判断后一个合并
+    int nextIndex = nodeIndex + 1;
+    if (nextIndex < g_chunkInfoArr[chunkIndex].nodeNum)
+    {
+        if (g_chunkInfoArr[chunkIndex].nodeArr[nextIndex].length == 0)
+        {
+            g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].size +=
+                g_chunkInfoArr[chunkIndex].nodeArr[nextIndex].size;
+            //拷贝数据
+            int cpySize = (g_chunkInfoArr[chunkIndex].nodeNum - nextIndex - 1) * sizeof(Node);
+            if (cpySize > 0) //越界考虑
+            {
+                memmove(&g_chunkInfoArr[chunkIndex].nodeArr[nextIndex],
+                    &g_chunkInfoArr[chunkIndex].nodeArr[nextIndex + 1],
+                    cpySize); //整体往前移动一个
+            }
+            g_chunkInfoArr[chunkIndex].nodeNum--;
+        }
+    }
+
+    //判断前一个合并
+    int preIndex = nodeIndex - 1;
+    if (preIndex >= 0)
+    {
+        if (g_chunkInfoArr[chunkIndex].nodeArr[preIndex].length == 0)
+        {
+            g_chunkInfoArr[chunkIndex].nodeArr[preIndex].size +=
+                g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].size;
+            //拷贝数据
+            int cpySize = (g_chunkInfoArr[chunkIndex].nodeNum - nodeIndex - 1) * sizeof(Node);
+            if (cpySize > 0) //越界考虑
+            {
+                memmove(&g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex],
+                    &g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex + 1],
+                    cpySize); //整体往前移动一个
+            }
+            g_chunkInfoArr[chunkIndex].nodeNum--;
+        }
+    }
+    
+    return 1;
+}
 
 /**************************view*****************************/
 
 //菜单界面
-void menuInput()
+void menuView()
 {
     while (1)
     {
@@ -201,7 +300,7 @@ void menuInput()
             }
             case 4:
             {
-                queryInput();
+                queryView();
                 break;
             }
             case 5:
@@ -267,14 +366,31 @@ void addInput()
 //删除输入
 void deleteInput()
 {
-    int dataId = 0;
-    printf("请输入需要删除的数据Id：");
-    scanf("%d", &dataId);
-
+    int chunkIndex = 0;
+    int nodeIndex = 0;
+    if (!findByIdInput(&chunkIndex, &nodeIndex))
+    {
+        return;
+    }
+    printf("请确认是否删除(y or n)：");
+    rewind(stdin);
+    char confirm;
+    confirm = getchar();
+    rewind(stdin);
+    if (!checkConfirmInput(confirm))
+    {//不删除
+        printf("该数据未删除\r\n");
+        return; 
+    }
+        
+    if (deleteDataBuf(chunkIndex, nodeIndex))
+    {
+        printf("删除成功\r\n");
+    }
 }
 
 //查询界面
-void queryInput()
+void queryView()
 {
     while (1)
     {
@@ -301,27 +417,55 @@ void queryInput()
             }
             case 3:
             {
+                int chunkIndex = 0;
+                int nodeIndex = 0;
+                findByIdInput(&chunkIndex,&nodeIndex);
                 return;
             }
             default:
             {
                 printf("对不起，输入有误，请重新选择\r\n");
+                system("pause");
                 break;
             }
         }
     }
 }
 
+
 //内容查找 输入
 void findByContentInput()
 {
-
+    printf("请输入需要查找内容");
 }
+
+
+//Id查找 输入
+int findByIdInput(int *chunkIndex,int *nodeIndex)
+{
+    int dataId;
+    printf("请输入Id:");
+    scanf("%d",&dataId);
+    
+    if (!findById(dataId, chunkIndex, nodeIndex))
+    {
+        printf("对不起,无该Id数据(可能已删除),请确认Id信息\r\n");
+        return 0;
+    }
+
+    //获取数据存储下标和长度
+    int index = getDataBufIndex(*chunkIndex, *nodeIndex);
+    int length = getDataBufLength(*chunkIndex, *nodeIndex);
+    printf("查找结果: ");
+    printData(dataId,index,length);
+    return 1;
+}
+
 
 //打印某一条数据
 void printData(int dataId, int index, int length)
 {
-    printf("%d. ", dataId);
+    printf("(%d). ", dataId);
     for(int i = 0;i < length;++i)
         printf("%c",g_dataBuf[index+i]);
     printf("\r\n");
