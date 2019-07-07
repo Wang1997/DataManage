@@ -134,7 +134,8 @@ int getStorageInfo(int inputNum,int *chunkIndex,int *nodeIndex)
     }
     else if(g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex].length)
     {//原先有数据,需开辟新节点 扩展往后
-        int cpySize = (g_chunkInfoArr[*chunkIndex].nodeNum - *nodeIndex - 1) * sizeof(Node);
+        int cpySize = (g_chunkInfoArr[*chunkIndex].nodeNum - *nodeIndex - 1) 
+                                                    * sizeof(Node);
         if (cpySize > 0) //越界考虑
         {
             memmove(&g_chunkInfoArr[*chunkIndex].nodeArr[*nodeIndex + 2],
@@ -205,6 +206,58 @@ int findById(int dataId, int *chunkIndex, int *nodeIndex)
     return 0;
 }
 
+// 数据匹配
+int dataCompare(int dataIndex, int dataLen, PType content, int conLen)
+{
+    if (conLen > dataLen)
+    {
+        return 0;
+    }
+
+    for (int i = dataIndex; i < dataIndex+dataLen; ++i)
+    {
+        int flag = 1;
+        int index = i;
+        for (int j = 0; j < conLen; ++j)
+        {
+            if (g_dataBuf[index] != content[j])
+            {
+                flag = 0;
+                break;
+            }
+            ++index;
+        }
+        if(flag) //匹配成功
+            return 1;
+    }
+
+    return 0;
+}
+
+//根据内容查找
+int findByContent(PType content, int length)
+{
+    int dataId = 0;
+    int findNum = 0;
+    //遍历块 
+    for (int i = 0; i < g_chunkNum; ++i)
+    {
+        int index = g_chunkInfoArr[i].startIndex;
+        //遍历块中节点
+        for (int j = 0; j < g_chunkInfoArr[i].nodeNum; ++j)
+        {
+            ++dataId;
+            if (dataCompare(index, g_chunkInfoArr[i].nodeArr[j].length, content, length)) //匹配数据
+            {
+                printData(dataId, index, g_chunkInfoArr[i].nodeArr[j].length);
+                ++findNum;
+            }
+            index += g_chunkInfoArr[i].nodeArr[j].size;
+        }
+    }
+    return findNum;
+}
+
 //确认核对检查
 int checkConfirmInput(char confirm) 
 {
@@ -229,7 +282,8 @@ int deleteDataBuf(int chunkIndex, int nodeIndex)
             g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].size +=
                 g_chunkInfoArr[chunkIndex].nodeArr[nextIndex].size;
             //拷贝数据
-            int cpySize = (g_chunkInfoArr[chunkIndex].nodeNum - nextIndex - 1) * sizeof(Node);
+            int cpySize = (g_chunkInfoArr[chunkIndex].nodeNum - nextIndex - 1) 
+                                                        * sizeof(Node);
             if (cpySize > 0) //越界考虑
             {
                 memmove(&g_chunkInfoArr[chunkIndex].nodeArr[nextIndex],
@@ -249,7 +303,8 @@ int deleteDataBuf(int chunkIndex, int nodeIndex)
             g_chunkInfoArr[chunkIndex].nodeArr[preIndex].size +=
                 g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].size;
             //拷贝数据
-            int cpySize = (g_chunkInfoArr[chunkIndex].nodeNum - nodeIndex - 1) * sizeof(Node);
+            int cpySize = (g_chunkInfoArr[chunkIndex].nodeNum - nodeIndex - 1) 
+                                                        * sizeof(Node);
             if (cpySize > 0) //越界考虑
             {
                 memmove(&g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex],
@@ -261,6 +316,48 @@ int deleteDataBuf(int chunkIndex, int nodeIndex)
     }
     
     return 1;
+}
+
+//更新数据
+int updateDataBuf(int chunkIndex, int nodeIndex, PType content, int conLen)
+{
+    int index = getDataBufIndex(chunkIndex, nodeIndex);
+    g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].length = conLen;
+    //更新源数据
+    memcpy(&g_dataBuf[index], content, sizeof(Type) * conLen);
+    return 1; 
+}
+
+//统计单词
+int statisticalWords(int *statisticalArr)
+{
+    int totalLetters = 0;
+    //遍历块 
+    for (int i = 0; i < g_chunkNum; ++i)
+    {
+        int index = g_chunkInfoArr[i].startIndex;
+        //遍历块中节点
+        for (int j = 0; j < g_chunkInfoArr[i].nodeNum; ++j)
+        {
+            //遍历真实数据
+            for (int k = 0; k < g_chunkInfoArr[i].nodeArr[j].length; ++k)
+            {
+                Type data = g_dataBuf[index + k];
+                if (data >= 'a' && data <= 'z')
+                {
+                    statisticalArr[data - 'a']++;
+                }
+                else if (data >= 'A' && data <= 'Z')
+                {
+                    statisticalArr[data - 'A' + LETTERS_NUM]++;
+                }
+            }
+            totalLetters += g_chunkInfoArr[i].nodeArr[j].length;
+            index += g_chunkInfoArr[i].nodeArr[j].size;
+        }
+    }
+    
+    return totalLetters;
 }
 
 /**************************view*****************************/
@@ -296,6 +393,7 @@ void menuView()
             }
             case 3:
             {
+                updateInput();
                 break;
             }
             case 4:
@@ -305,6 +403,7 @@ void menuView()
             }
             case 5:
             {
+                statisticalWordsView();
                 break;
             }
             case 6:
@@ -346,6 +445,7 @@ void addInput()
         printf("对不起,剩余空间不够\r\n");
         return;
     }
+
     rewind(stdin);
     printf("请输入数据：");
     int i = 0;
@@ -358,8 +458,8 @@ void addInput()
         addInputData(index+i,&data);
         i++;
     }
+
     printf("添加成功\r\n");
-    rewind(stdin);
     return;
 }
 
@@ -376,7 +476,7 @@ void deleteInput()
     rewind(stdin);
     char confirm;
     confirm = getchar();
-    rewind(stdin);
+
     if (!checkConfirmInput(confirm))
     {//不删除
         printf("该数据未删除\r\n");
@@ -387,6 +487,57 @@ void deleteInput()
     {
         printf("删除成功\r\n");
     }
+}
+
+//更新
+void updateInput()
+{
+    int chunkIndex = 0;
+    int nodeIndex = 0;
+    if (!findByIdInput(&chunkIndex, &nodeIndex))
+    {
+        return;
+    }
+
+    int inputNum = 0;
+    printf("请输入修改后的字节个数：");
+    scanf("%d", &inputNum);
+    if (!checkAddInput(inputNum))
+    {
+        printf("对不起,输入的范围有误\r\n");
+        return;
+    }
+    printf("请输入数据:");
+    Type data[MAX_INPUT_LENGTH];
+    int i = 0;
+    rewind(stdin);
+    while (i < inputNum)
+    {
+        data[i++] = getchar();
+    }
+
+    int length = getDataBufLength(chunkIndex, nodeIndex);
+    if (length < inputNum) //需获取新的存储空间
+    {
+        int newChunkIndex = 0;
+        int newNodeIndex = 0;
+        //获取新的存储信息
+        if (!getStorageInfo(inputNum, &newChunkIndex, &newNodeIndex))
+        {
+            printf("对不起,删除失败,剩余空间不够\r\n");
+            return;
+        }
+        //删除旧数据
+        deleteDataBuf(chunkIndex, nodeIndex);
+        chunkIndex = newChunkIndex;
+        nodeIndex = newNodeIndex;
+    }
+
+    if (updateDataBuf(chunkIndex, nodeIndex, data, inputNum))
+    {
+        printf("更新成功\r\n");
+    }
+    
 }
 
 //查询界面
@@ -436,7 +587,30 @@ void queryView()
 //内容查找 输入
 void findByContentInput()
 {
-    printf("请输入需要查找内容");
+    printf("请输入需要查找内容的字符个数：");
+    int inputNum;
+    scanf("%d", &inputNum);
+    if (!checkAddInput(inputNum))
+    {
+        printf("对不起,输入的范围有误\r\n");
+        return;
+    }
+
+    printf("请输入需匹配的数据: ");
+    Type data[MAX_INPUT_LENGTH];
+    int i = 0;
+    rewind(stdin);
+    while (i < inputNum)
+    {
+        data[i++] = getchar();
+    }
+
+    printf("查找结果：\r\n");
+    int findNum = findByContent(data, inputNum);
+    if (!findNum)
+    {
+        printf("  对不起,匹配不到数据\r\n");
+    }
 }
 
 
@@ -461,11 +635,69 @@ int findByIdInput(int *chunkIndex,int *nodeIndex)
     return 1;
 }
 
+//统计单词界面
+void statisticalWordsView()
+{
+    system("cls");
+    int statisticalArr[LETTERS_NUM * 2] = {0};
+    int totalLetters = statisticalWords(statisticalArr);
+    
+    if (!totalLetters)
+    {
+        printf("无统计结果\r\n");
+        return;
+    }
+    
+    printf("统计结果如下: \r\n");
+    printf("字符总计为%d个\r\n", totalLetters);
+    for (int i = 0; i < LETTERS_NUM * 2; ++i)
+    {
+        if (statisticalArr[i])
+        {
+            if (i < LETTERS_NUM)
+            {
+                printf("%c 出现了%d次,比例为%.2lf%%\r\n", i + 'a', statisticalArr[i],
+                    statisticalArr[i] * 100.0 / totalLetters);
+            }
+            else
+            {
+                printf("%c 出现了%d次,比例为%.2lf%%\r\n", i - LETTERS_NUM + 'A', 
+                    statisticalArr[i], statisticalArr[i] * 100.0 / totalLetters);
+            }
+        }
+    }
+    printf("\r\n以下字母尚未出现：\r\n");
+    int flag = 0;
+    for (int i = 0; i < LETTERS_NUM * 2; ++i)
+    {
+        if (!statisticalArr[i])
+        {
+            if(flag)
+                printf(",");
+            if (i < LETTERS_NUM)
+            {
+                printf("%c", i + 'a');
+            }
+            else
+            {
+                printf("%c", i - LETTERS_NUM + 'A');
+            }
+            flag = 1;
+        }
+        if (i == LETTERS_NUM - 1)
+        {
+            printf("\r\n");
+            flag = 0;
+        }
+    }
+    printf("\r\n");
+}
+
 
 //打印某一条数据
 void printData(int dataId, int index, int length)
 {
-    printf("(%d). ", dataId);
+    printf("[%d]. ", dataId);
     for(int i = 0;i < length;++i)
         printf("%c",g_dataBuf[index+i]);
     printf("\r\n");
