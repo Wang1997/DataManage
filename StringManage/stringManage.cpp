@@ -1,5 +1,4 @@
 #include "stringManage.h"
-#include "dataCrud.h"
 
 
 int main(int argc, char *argv[])
@@ -11,6 +10,21 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+// 添加输入检查
+int checkAddInput(int inputNum)
+{
+    if (inputNum <= 0 || inputNum > MAX_INPUT_LENGTH)
+        return 0;
+    return 1;
+}
+
+//确认核对检查
+int checkConfirmInput(char confirm)
+{
+    if (confirm != 'y' && confirm != 'Y')
+        return 0;
+    return 1;
+}
 
 //菜单界面
 void menuView()
@@ -28,6 +42,7 @@ void menuView()
         printf("7.退出\r\n");
         printf("请选择: ");
         int choose;
+        rewind(stdin);
         scanf("%d",&choose);
         switch (choose)
         {
@@ -81,112 +96,136 @@ void menuView()
 void addInput()
 {
     int inputNum = 0;
-    printf("请输入需要添加的字节个数：");
-    scanf("%d", &inputNum);
-    if (!checkAddInput(inputNum))
+    printf("请输入需要添加的字符串：");
+    Type data[MAX_INPUT_LENGTH+1] = {0};
+    char input[8] = {0};
+    sprintf(input, "%%%ds", MAX_INPUT_LENGTH);
+
+    rewind(stdin);
+    scanf(input , &data); //输入数据
+
+    int dataLength = strlen(data);
+
+    if (!checkAddInput(dataLength))
     {
         printf("对不起,输入的范围有误\r\n");
         return;
     }
-    int chunkIndex = 0;
-    int nodeIndex = 0;
+
     //获取存储信息
-    if (!getStorageInfo(inputNum, &chunkIndex, &nodeIndex))
+    IndexInfo indexInfo = getStorageInfo(dataLength);
+    if (!checkIndexInfo(&indexInfo))
     {
         printf("对不起,剩余空间不够\r\n");
         return;
     }
 
-    rewind(stdin);
-    printf("请输入数据：");
-    int i = 0;
-    Type data;
-    //获取数据存储开始下标
-    int index = getDataBufIndex(chunkIndex, nodeIndex);
-    while (i < inputNum)
+    if (addInputData(&indexInfo, data, dataLength))
     {
-        data = getchar();
-        addInputData(index+i,&data);
-        i++;
+        printf("添加成功\r\n");
     }
-    rewind(stdin);
-    printf("添加成功\r\n");
+    else
+    {
+        printf("添加失败\r\n");
+    }
+    
     return;
 }
 
 //删除输入
 void deleteInput()
 {
-    int chunkIndex = 0;
-    int nodeIndex = 0;
-    if (!findByIdInput(&chunkIndex, &nodeIndex))
+    printf("请输入要删除的Id:");
+    int dataId = 0;
+    rewind(stdin);
+    scanf("%d",&dataId);
+
+    //获取存储信息
+    IndexInfo indexInfo = findById(dataId);
+    if (!checkIndexInfo(&indexInfo))
     {
+        printf("对不起,查找错误\r\n");
         return;
     }
+    printf("删除数据如下: \r\n");
+    printData(&indexInfo);
+
     printf("请确认是否删除(y or n)：");
     rewind(stdin);
     char confirm;
     confirm = getchar();
-    rewind(stdin);
     if (!checkConfirmInput(confirm))
     {//不删除
         printf("该数据未删除\r\n");
         return; 
     }
         
-    if (deleteDataBuf(chunkIndex, nodeIndex))
+    if (deleteDataBuf(&indexInfo))
     {
         printf("删除成功\r\n");
+    }
+    else
+    {
+        printf("删除失败\r\n");
     }
 }
 
 //更新
 void updateInput()
 {
-    int chunkIndex = 0;
-    int nodeIndex = 0;
-    if (!findByIdInput(&chunkIndex, &nodeIndex))
-    {
-        return;
-    }
+    printf("请输入要更新的Id:");
+    int dataId = 0;
+    rewind(stdin);
+    scanf("%d", &dataId);
 
-    int inputNum = 0;
-    printf("请输入修改后的字节个数：");
-    scanf("%d", &inputNum);
-    if (!checkAddInput(inputNum))
+    //获取存储信息
+    IndexInfo indexInfo = findById(dataId);
+    if (!checkIndexInfo(&indexInfo))
     {
-        printf("对不起,输入的范围有误\r\n");
+        printf("对不起,查找错误\r\n");
         return;
     }
-    printf("请输入数据:");
-    Type data[MAX_INPUT_LENGTH];
-    int i = 0;
+    printf("更新数据如下: \r\n");
+    printData(&indexInfo);
+
+    printf("请输入需要更新的字符串：");
+    Type data[MAX_INPUT_LENGTH + 1] = { 0 };
+    char input[8] = { 0 };
+    sprintf(input, "%%%ds", MAX_INPUT_LENGTH);
+
     rewind(stdin);
-    while (i < inputNum)
+    scanf(input, &data); //输入数据
+
+    int length = getDataBufLength(&indexInfo);
+    int updateLength = strlen(data);
+    if (length < updateLength) //需获取新的存储空间
     {
-        data[i++] = getchar();
-    }
-    rewind(stdin);
-    int length = getDataBufLength(chunkIndex, nodeIndex);
-    if (length < inputNum) //需获取新的存储空间
-    {
-        int newChunkIndex = 0;
-        int newNodeIndex = 0;
         //获取新的存储信息
-        if (!getStorageInfo(inputNum, &newChunkIndex, &newNodeIndex))
+        IndexInfo updateIndexInfo = getStorageInfo(updateLength);
+        if (!checkIndexInfo(&updateIndexInfo))
         {
-            printf("对不起,删除失败,剩余空间不够\r\n");
+            printf("对不起,更新失败,剩余空间不够\r\n");
             return;
         }
         //删除旧数据
-        deleteDataBuf(chunkIndex, nodeIndex);
-        chunkIndex = newChunkIndex;
-        nodeIndex = newNodeIndex;
+        if (deleteDataBuf(&indexInfo))
+        {
+            indexInfo = updateIndexInfo;
+        }
+        else 
+        {
+            printf("更新失败,旧数据删除失败\r\n");
+            return;
+        }
     }
 
-    if (updateDataBuf(chunkIndex, nodeIndex, data, inputNum))
+    if (updateDataBuf(&indexInfo, data, updateLength))
     {
         printf("更新成功\r\n");
+    }
+    else
+    {
+        printf("更新失败\r\n");
     }
     
 }
@@ -203,12 +242,12 @@ void queryView()
         printf("3.根据Id查找\r\n");
         printf("请选择: ");
         int choose;
+        rewind(stdin);
         scanf("%d", &choose);
         switch (choose)
         {
             case 1:
             {
-                system("cls");
                 showAllData();
                 return;
             }
@@ -219,9 +258,7 @@ void queryView()
             }
             case 3:
             {
-                int chunkIndex = 0;
-                int nodeIndex = 0;
-                findByIdInput(&chunkIndex,&nodeIndex);
+                findByIdInput();
                 return;
             }
             default:
@@ -234,31 +271,54 @@ void queryView()
     }
 }
 
+// 展示所有数据
+void showAllData()
+{
+    system("cls");
+
+    resetIteatorIndex();
+    while (hasNextIndexInfo())
+    {
+        IndexInfo indexInfo = getNextIndexInfo();
+        if (getDataBufLength(&indexInfo)) //删除数据不打印
+        {
+            printData(&indexInfo);
+        }
+    }
+    
+    return;
+}
+
 
 //内容查找 输入
 void findByContentInput()
 {
-    printf("请输入需要查找内容的字符个数：");
-    int inputNum;
-    scanf("%d", &inputNum);
-    if (!checkAddInput(inputNum))
-    {
-        printf("对不起,输入的范围有误\r\n");
-        return;
-    }
+    printf("请输入需要匹配的字符串：");
+    Type data[MAX_INPUT_LENGTH + 1] = { 0 };
+    char input[8] = { 0 };
+    sprintf(input, "%%%ds", MAX_INPUT_LENGTH);
 
-    printf("请输入需匹配的数据: ");
-    Type data[MAX_INPUT_LENGTH];
-    int i = 0;
     rewind(stdin);
-    while (i < inputNum)
-    {
-        data[i++] = getchar();
-    }
+    scanf(input, &data); //输入数据
+
+    int dataLength = strlen(data);
 
     printf("查找结果：\r\n");
-    int findNum = findByContent(data, inputNum);
-    if (!findNum)
+    int flag = 0;
+    
+    resetIteatorIndex();
+    while (hasNextIndexInfo())
+    {
+        IndexInfo indexInfo = getNextFindByContent(data, dataLength);
+        //可能查找不到,需判断数据有效性
+        if (checkIndexInfo(&indexInfo)) 
+        {
+            printData(&indexInfo);
+            flag = 1;
+        }
+    }
+
+    if (!flag)
     {
         printf("  对不起,匹配不到数据\r\n");
     }
@@ -266,32 +326,32 @@ void findByContentInput()
 
 
 //Id查找 输入
-int findByIdInput(int *chunkIndex,int *nodeIndex)
+void findByIdInput()
 {
+    
+    printf("请输入需要查找的Id:");
     int dataId;
-    printf("请输入Id:");
+    rewind(stdin);
     scanf("%d",&dataId);
     
-    if (!findById(dataId, chunkIndex, nodeIndex))
+    //获取存储信息
+    IndexInfo indexInfo = findById(dataId);
+    if (!checkIndexInfo(&indexInfo))
     {
-        printf("对不起,无该Id数据(可能已删除),请确认Id信息\r\n");
-        return 0;
+        printf("对不起,查找无结果\r\n");
+        return;
     }
 
-    //获取数据存储下标和长度
-    int index = getDataBufIndex(*chunkIndex, *nodeIndex);
-    int length = getDataBufLength(*chunkIndex, *nodeIndex);
-    printf("查找结果: ");
-    printData(dataId,index,length);
-    return 1;
+    printf("查找数据如下: \r\n");
+    printData(&indexInfo);
 }
 
 //统计单词界面
 void statisticalWordsView()
 {
     system("cls");
-    int statisticalArr[LETTERS_NUM * 2] = {0};
-    int totalLetters = statisticalWords(statisticalArr);
+    int totalLetters = getDataTotalNum();
+    int *statisticalArr = statisticalWords();
     
     if (!totalLetters)
     {
@@ -360,8 +420,7 @@ void storeInfoView()
         {
             case 1:
             {
-                system("cls");
-                
+                showStorageResource();
                 return;
             }
             case 2:
@@ -379,11 +438,43 @@ void storeInfoView()
     }
 }
 
-//打印某一条数据
-void printData(int dataId, int index, int length)
+//展示存储资源图
+void showStorageResource()
 {
+    int totalCounts = 0;
+    resetIteatorIndex();
+    while (hasNextIndexInfo())
+    {
+        IndexInfo indexInfo = getNextIndexInfo();
+        int len = getDataBufLength(&indexInfo);
+        int size = getDataBufSize(&indexInfo);
+        for (int i = 0; i < size; ++i)
+        {
+            if (i < len)
+            {
+                printf("■"); //占有
+            }
+            else
+            {
+                printf("□"); //空闲
+            }
+            if(++totalCounts % 10 == 0)
+                printf("\r\n");
+        }
+    }
+    printf("\r\n");
+}
+
+//打印某一条数据
+void printData(PIndexInfo pIndexInfo)
+{
+    int dataId = getDataIdByIndexInfo(pIndexInfo);
     printf("[%d]. ", dataId);
-    for(int i = 0;i < length;++i)
-        //printf("%c",g_dataBuf[index+i]);
+    
+    int length = getDataBufLength(pIndexInfo);
+    for (int i = 0; i < length; ++i)
+    {
+        printf("%c", getDataByIndex(pIndexInfo, i));
+    }
     printf("\r\n");
 }

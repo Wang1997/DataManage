@@ -5,26 +5,17 @@
 //存储数据类型
 typedef char Type, *PType;
 
-//数据节点
-typedef struct node
+//索引结构体
+typedef struct indexInfo
 {
-    int length = 0; //所占空间长度
-    int size = 0; //节点总大小
-}Node, *PNode;
+    int chunkIndex = -1; //块索引
+    int nodeIndex = -1; //节点索引
+}IndexInfo,*PIndexInfo;
 
-//数据块信息
-typedef struct chunkInfo
-{
-    int startIndex = 0; //块的起始索引
-    int totalSize = 0; //块的总大小
-    int nodeNum = 0; //块中节点个数
-    PNode nodeArr = NULL; //块中节点数据
-}ChunkInfo, *PChunkInfo;
-
+// 数据源最大存储长度
 #define BUF_LENGTH 0x5000
-#define MAX_INPUT_LENGTH 30
+// 单词个数(统计)
 #define LETTERS_NUM 26
-#define SIZE_DIFF 5
 
 
 /*************************interface*****************************/
@@ -36,47 +27,50 @@ void init();
 // 退出程序处理工作,如释放内存等
 void quit();
 
-// 添加输入检查
-int checkAddInput(int inputNum);
+// 检测索引数据有效性
+int checkIndexInfo(PIndexInfo pIndexInfo);
 
 // 添加数据
-void addInputData(int index, PType pData);
-
-// 获取数据数组的下标
-int getDataBufIndex(int chunkIndex, int nodeIndex);
-
-// 获取数据数组的长度
-int getDataBufLength(int chunkIndex, int nodeIndex);
-
-// 添加一个新的存储块
-int addNewChunk(int inputNum, int startIndex);
+int addInputData(PIndexInfo pIndexInfo, PType pData,int dataLength);
 
 // 获取一块存储位置
-int getStorageInfo(int inputNum, int *chunkIndex, int *nodeIndex);
+IndexInfo getStorageInfo(int dataLength);
+
+//重置索引迭代器
+void resetIteatorIndex();
+
+//判断是否有数据
+int hasNextIndexInfo();
+
+//获取索引结构体数据
+IndexInfo getNextIndexInfo();
+
+// 获取源数据的长度
+int getDataBufLength(PIndexInfo pIndexInfo);
+
+// 获取源数据的占用空间
+int getDataBufSize(PIndexInfo pIndexInfo);
+
+//根据索引获取源数据
+Type getDataByIndex(PIndexInfo pIndexInfo, int index);
 
 //根据Id查找
-int findById(int dataId, int *chunkIndex, int *nodeIndex);
+IndexInfo findById(int dataId);
 
-// 数据匹配
-int dataCompare(int dataIndex, int dataLen, PType content, int conLen);
+//根据索引获取数据Id
+int getDataIdByIndexInfo(PIndexInfo pIndexInfo);
 
 //根据内容查找
-int findByContent(PType content, int length);
-
-//确认核对检查
-int checkConfirmInput(char confirm);
+IndexInfo getNextFindByContent(PType content, int length);
 
 //删除数据
-int deleteDataBuf(int chunkIndex, int nodeIndex);
+int deleteDataBuf(PIndexInfo pIndexInfo);
 
 //更新数据
-int updateDataBuf(int chunkIndex, int nodeIndex, PType content, int conLen);
+int updateDataBuf(PIndexInfo pIndexInfo, PType content, int conLen);
 
 //统计单词
-int statisticalWords(int *statisticalArr);
+int* statisticalWords();
 
-/*
-*展示数据
-*接口设计有问题,应该返回数据
-*/
-void showAllData();
+//获取数据总共个数
+int getDataTotalNum();
