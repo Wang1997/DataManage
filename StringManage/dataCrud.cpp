@@ -102,14 +102,25 @@ static int dataCompare(int dataIndex, int dataLen, PType content, int conLen)
     {
         int flag = 1;
         int index = i;
+        
         for (int j = 0; j < conLen; ++j)
         {
-            if (g_dataBuf[index] != content[j])
+            int compareSize = sizeof(Type);
+            //取类型后进行字节比较
+            char *src = (char*)(g_dataBuf+index);
+            char *compare = (char*)(content+j);
+            while (compareSize > 0)
             {
-                flag = 0;
-                break;
+                if (*src++ != *compare++)
+                {
+                    flag = 0;
+                    break;
+                }
+                compareSize--;
             }
             ++index;
+            if(!flag)
+                break;
         }
         if (flag) //匹配成功
             return 1;
@@ -118,7 +129,25 @@ static int dataCompare(int dataIndex, int dataLen, PType content, int conLen)
     return 0;
 }
 
+// 获取有效的节点数量
+static int getValidNodeNum()
+{
+    int totalNum = 0;
+    //遍历块 
+    for (int i = 0; i < g_chunkNum; ++i)
+    {
+        //遍历块中节点
+        for (int j = 0; j < g_chunkInfoArr[i].nodeNum; ++j)
+        {
+            //长度不为0说明是有效数据
+            if(g_chunkInfoArr[i].nodeArr[j].length)
+                totalNum++;
+        }
+    }
 
+    return totalNum;
+    
+}
 
 /*************************interface*****************************/
 
@@ -271,7 +300,7 @@ int hasNextIndexInfo()
         return 0;
     }
     if (g_iteator_nodeIndex < 0 || g_iteator_nodeIndex >= 
-                                        g_chunkInfoArr[g_iteator_chunkIndex].nodeNum)
+                                   g_chunkInfoArr[g_iteator_chunkIndex].nodeNum)
     {
         return 0;
     }
@@ -366,7 +395,8 @@ IndexInfo findById(int dataId)
         calcId += g_chunkInfoArr[i].nodeNum;
         if (calcId >= dataId)
         {
-            int nodeIndex = dataId - (calcId - g_chunkInfoArr[i].nodeNum) - 1;//下标需-1
+            //下标需-1
+            int nodeIndex = dataId - (calcId - g_chunkInfoArr[i].nodeNum) - 1;
             // 判断数据有效性
             if (!g_chunkInfoArr[i].nodeArr[nodeIndex].length)
                 return retIndex;
@@ -561,4 +591,60 @@ int getDataTotalNum()
     }
 
     return totalNum;
+}
+
+//碎片整理
+int defragment()
+{
+    //获取有效节点数量,用于分配空间
+    int validNodeNum = getValidNodeNum();
+    PNode nodeArr = NULL;
+    if (validNodeNum > 0)
+    {
+        nodeArr = (PNode)malloc(sizeof(Node) * validNodeNum);
+        if (nodeArr == NULL)
+        { //内存申请失败
+            return 0;
+        }
+    }
+
+    //拷贝数据和释放旧数据内存
+    int nodeId = 0;
+    //遍历块 
+    for (int i = 0; i < g_chunkNum; ++i)
+    {
+        //遍历块中节点
+        for (int j = 0; j < g_chunkInfoArr[i].nodeNum; ++j)
+        {
+            if (g_chunkInfoArr[i].nodeArr[j].length)
+            {//进行复制有效数据
+                nodeArr[nodeId++] = g_chunkInfoArr[i].nodeArr[j];
+            }
+        }
+        free(g_chunkInfoArr[i].nodeArr); //释放内存
+    }
+
+    //初始化索引表
+    memset(g_chunkInfoArr, 0, sizeof(ChunkInfo) * BUF_LENGTH);
+    g_chunkNum = 0;
+    //根据节点数据移动源数据并更新索引表
+    int dataIndex = 0;
+    for (nodeId = 0; nodeId < validNodeNum; ++nodeId)
+    {
+        //移动源数据
+        int cpySize = nodeArr[nodeId].length * sizeof(Type);
+        memmove(&g_dataBuf[dataIndex],&g_dataBuf[nodeArr[nodeId].index]
+                                                ,cpySize);
+        dataIndex += nodeArr[nodeId].length;
+        //更新对应索引表
+        addNewChunk(nodeArr[nodeId].length);
+        g_chunkInfoArr[g_chunkNum-1].nodeArr[0].length = nodeArr[nodeId].length;
+    }
+
+    if (validNodeNum > 0)
+    {
+        free(nodeArr); //释放内存
+    }
+   
+    return 1;
 }

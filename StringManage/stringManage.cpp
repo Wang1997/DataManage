@@ -3,11 +3,25 @@
 
 int main(int argc, char *argv[])
 {
-    init();
+    manageInit();
     menuView();
-    quit();
+    manageQuit();
     system("pause");
     return 0;
+}
+
+//该程序初始化
+void manageInit()
+{
+    init();
+    srand(time(NULL));
+}
+
+//该程序退出
+void manageQuit()
+{
+    quit(); //调用dataCrud的quit，进行释放内存
+    printf("感谢您的使用\r\n");
 }
 
 // 添加输入检查
@@ -39,7 +53,8 @@ void menuView()
         printf("4.查询功能\r\n");
         printf("5.统计功能\r\n");
         printf("6.存储信息功能\r\n");
-        printf("7.退出\r\n");
+        printf("7.自动扩容功能\r\n");
+        printf("8.退出\r\n");
         printf("请选择: ");
         int choose;
         rewind(stdin);
@@ -77,6 +92,11 @@ void menuView()
                 break;
             }
             case 7:
+            {
+                autoExpansion();
+                break;
+            }
+            case 8:
             {
                 return;
                 break;
@@ -144,10 +164,10 @@ void deleteInput()
     IndexInfo indexInfo = findById(dataId);
     if (!checkIndexInfo(&indexInfo))
     {
-        printf("对不起,查找错误\r\n");
+        printf("对不起,查找不到该数据\r\n");
         return;
     }
-    printf("删除数据如下: \r\n");
+    printf("需删除数据如下: \r\n");
     printData(&indexInfo);
 
     printf("请确认是否删除(y or n)：");
@@ -182,13 +202,13 @@ void updateInput()
     IndexInfo indexInfo = findById(dataId);
     if (!checkIndexInfo(&indexInfo))
     {
-        printf("对不起,查找错误\r\n");
+        printf("对不起,查找不到该数据\r\n");
         return;
     }
-    printf("更新数据如下: \r\n");
+    printf("需更新数据如下: \r\n");
     printData(&indexInfo);
 
-    printf("请输入需要更新的字符串：");
+    printf("请输入更新后的字符串：");
     Type data[MAX_INPUT_LENGTH + 1] = { 0 };
     char input[8] = { 0 };
     sprintf(input, "%%%ds", MAX_INPUT_LENGTH);
@@ -355,7 +375,7 @@ void statisticalWordsView()
     
     if (!totalLetters)
     {
-        printf("无统计结果\r\n");
+        printf("对不起,暂无数据可统计\r\n");
         return;
     }
     
@@ -425,7 +445,14 @@ void storeInfoView()
             }
             case 2:
             {
-                
+                if (defragment())
+                {
+                    printf("碎片整理成功\r\n");
+                }
+                else
+                {
+                    printf("碎片整理失败\r\n");
+                }
                 return;
             }
             default:
@@ -442,6 +469,7 @@ void storeInfoView()
 void showStorageResource()
 {
     int totalCounts = 0;
+    int totalSize = 0;
     resetIteatorIndex();
     while (hasNextIndexInfo())
     {
@@ -458,11 +486,13 @@ void showStorageResource()
             {
                 printf("□"); //空闲
             }
-            if(++totalCounts % 10 == 0)
+            if(++totalCounts % 30 == 0)
                 printf("\r\n");
         }
+        totalSize += size;
     }
     printf("\r\n");
+    printf("总共空间大小:0x%x,剩余0x%x未分配\r\n", BUF_LENGTH, BUF_LENGTH-totalSize);
 }
 
 //打印某一条数据
@@ -477,4 +507,39 @@ void printData(PIndexInfo pIndexInfo)
         printf("%c", getDataByIndex(pIndexInfo, i));
     }
     printf("\r\n");
+}
+
+
+//自动扩容
+void autoExpansion()
+{
+    char padding[] = "qwertyuioopasdfghjklzxcvbnm1234567890QWERTYUIO\
+        PASDFGHJKLZXCVBNM,.[;[]!@#%$^&*()))_+";
+    int paddingLen = strlen(padding);
+    //连续查找三次无结果则扩容结束
+    int find = 0;
+    Type data[MAX_INPUT_LENGTH] = {0};
+    
+    while (find < 3)
+    {
+        int dataLength = (rand() % MAX_INPUT_LENGTH) + 1; //[1,30]
+                                                          //获取存储信息
+        IndexInfo indexInfo = getStorageInfo(dataLength);
+        if (!checkIndexInfo(&indexInfo))
+        { //失败
+            find++;
+            continue;
+        }
+        for (int i = 0; i < dataLength; ++i)
+        {
+            data[i] = padding[rand() % paddingLen];
+        }
+        if (!addInputData(&indexInfo, data, dataLength))
+        { //失败
+            find++;
+            continue;
+        }
+        find = 0;
+    }
+    printf("自动扩容成功\r\n");
 }

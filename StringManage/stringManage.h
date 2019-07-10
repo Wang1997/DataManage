@@ -1,10 +1,17 @@
 #pragma once
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <string.h>
 #include "dataCrud.h"
 
 #define MAX_INPUT_LENGTH 30
+
+//该程序初始化
+void manageInit();
+
+//该程序退出
+void manageQuit();
 
 // 菜单界面
 void menuView();
@@ -47,3 +54,6 @@ void showStorageResource();
 
 //打印某一条数据
 void printData(PIndexInfo pIndexInfo);
+
+//自动扩容
+void autoExpansion();

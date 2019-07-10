@@ -74,3 +74,6 @@ int* statisticalWords();
 
 //获取数据总共个数
 int getDataTotalNum();
+
+//碎片整理
+int defragment();
