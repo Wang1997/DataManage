@@ -472,51 +472,99 @@ int deleteDataBuf(PIndexInfo pIndexInfo)
 
     //删除
     g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].length = 0;
-
-    //块内最近节点索引合并(约定往前)
-    //判断后一个合并
-    int nextIndex = nodeIndex + 1;
-    if (nextIndex < g_chunkInfoArr[chunkIndex].nodeNum)
+    
+    // 节点间进行合并
     {
-        if (g_chunkInfoArr[chunkIndex].nodeArr[nextIndex].length == 0)
+        //块内最近节点索引合并(约定往前)
+        //判断后一个合并
+        int nextIndex = nodeIndex + 1;
+        if (nextIndex < g_chunkInfoArr[chunkIndex].nodeNum)
         {
-            g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].size +=
-                g_chunkInfoArr[chunkIndex].nodeArr[nextIndex].size;
-            //拷贝数据
-            int cpySize = (g_chunkInfoArr[chunkIndex].nodeNum - nextIndex - 1)
-                * sizeof(Node);
-            if (cpySize > 0) //越界考虑
+            if (g_chunkInfoArr[chunkIndex].nodeArr[nextIndex].length == 0)
             {
-                memmove(&g_chunkInfoArr[chunkIndex].nodeArr[nextIndex],
-                    &g_chunkInfoArr[chunkIndex].nodeArr[nextIndex + 1],
-                    cpySize); //整体往前移动一个
-                updateIndex(chunkIndex, nextIndex); //更新索引
+                g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].size +=
+                    g_chunkInfoArr[chunkIndex].nodeArr[nextIndex].size;
+                //拷贝数据
+                int cpySize = (g_chunkInfoArr[chunkIndex].nodeNum - nextIndex - 1)
+                    * sizeof(Node);
+                if (cpySize > 0) //越界考虑
+                {
+                    memmove(&g_chunkInfoArr[chunkIndex].nodeArr[nextIndex],
+                        &g_chunkInfoArr[chunkIndex].nodeArr[nextIndex + 1],
+                        cpySize); //整体往前移动一个
+                    updateIndex(chunkIndex, nextIndex); //更新索引
+                }
+                g_chunkInfoArr[chunkIndex].nodeNum--;
             }
-            g_chunkInfoArr[chunkIndex].nodeNum--;
+        }
+
+        //判断前一个合并
+        int preIndex = nodeIndex - 1;
+        if (preIndex >= 0)
+        {
+            if (g_chunkInfoArr[chunkIndex].nodeArr[preIndex].length == 0)
+            {
+                g_chunkInfoArr[chunkIndex].nodeArr[preIndex].size +=
+                    g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].size;
+                //拷贝数据
+                int cpySize = (g_chunkInfoArr[chunkIndex].nodeNum - nodeIndex - 1)
+                    * sizeof(Node);
+                if (cpySize > 0) //越界考虑
+                {
+                    memmove(&g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex],
+                        &g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex + 1],
+                        cpySize); //整体往前移动一个
+                    updateIndex(chunkIndex, nodeIndex); //更新索引
+                }
+                g_chunkInfoArr[chunkIndex].nodeNum--;
+            }
         }
     }
 
-    //判断前一个合并
-    int preIndex = nodeIndex - 1;
-    if (preIndex >= 0)
+    //块间进行合并
     {
-        if (g_chunkInfoArr[chunkIndex].nodeArr[preIndex].length == 0)
+        //如果当前块只有一个节点，并且该节点无内容 考虑块间合并
+        if (g_chunkInfoArr[chunkIndex].nodeNum == 1 &&
+            g_chunkInfoArr[chunkIndex].nodeArr[0].length == 0)
         {
-            g_chunkInfoArr[chunkIndex].nodeArr[preIndex].size +=
-                g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex].size;
-            //拷贝数据
-            int cpySize = (g_chunkInfoArr[chunkIndex].nodeNum - nodeIndex - 1)
-                * sizeof(Node);
-            if (cpySize > 0) //越界考虑
+            // 判断后一个进行合并
+            int nextChunkIndex = chunkIndex + 1;
+            if (nextChunkIndex < g_chunkNum &&
+                g_chunkInfoArr[nextChunkIndex].nodeNum == 1 &&
+                g_chunkInfoArr[nextChunkIndex].nodeArr[0].length == 0)
             {
-                memmove(&g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex],
-                    &g_chunkInfoArr[chunkIndex].nodeArr[nodeIndex + 1],
-                    cpySize); //整体往前移动一个
-                updateIndex(chunkIndex, nodeIndex); //更新索引
+                g_chunkInfoArr[chunkIndex].totalSize +=
+                    g_chunkInfoArr[nextChunkIndex].totalSize;
+                g_chunkInfoArr[chunkIndex].nodeArr[0].size +=
+                    g_chunkInfoArr[nextChunkIndex].nodeArr[0].size;
+                free(g_chunkInfoArr[nextChunkIndex].nodeArr);//释放内存
+                for (int i = nextChunkIndex + 1; i < g_chunkNum; ++i)
+                { //拷贝
+                    g_chunkInfoArr[i-1] = g_chunkInfoArr[i];
+                }
+                --g_chunkNum;
             }
-            g_chunkInfoArr[chunkIndex].nodeNum--;
+
+            //判断前一个合并
+            int preIndex = chunkIndex - 1;
+            if (preIndex >= 0 &&
+                g_chunkInfoArr[preIndex].nodeNum == 1 &&
+                g_chunkInfoArr[preIndex].nodeArr[0].length == 0)
+            {
+                g_chunkInfoArr[preIndex].totalSize +=
+                    g_chunkInfoArr[chunkIndex].totalSize;
+                g_chunkInfoArr[preIndex].nodeArr[0].size +=
+                    g_chunkInfoArr[chunkIndex].nodeArr[0].size;
+                free(g_chunkInfoArr[chunkIndex].nodeArr);//释放内存
+                for (int i = chunkIndex + 1; i < g_chunkNum; ++i)
+                { //拷贝
+                    g_chunkInfoArr[i - 1] = g_chunkInfoArr[i];
+                }
+                --g_chunkNum;
+            }
         }
     }
+
 
     return 1;
 }

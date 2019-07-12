@@ -53,7 +53,7 @@ void menuView()
         printf("4.查询功能\r\n");
         printf("5.统计功能\r\n");
         printf("6.存储信息功能\r\n");
-        printf("7.自动扩容功能\r\n");
+        printf("7.自动填充功能\r\n");
         printf("8.退出\r\n");
         printf("请选择: ");
         int choose;
@@ -118,13 +118,16 @@ void addInput()
     int inputNum = 0;
     printf("请输入需要添加的字符串：");
     Type data[MAX_INPUT_LENGTH+1] = {0};
-    char input[8] = {0};
-    sprintf(input, "%%%ds", MAX_INPUT_LENGTH);
 
     rewind(stdin);
-    scanf(input , &data); //输入数据
+    fgets(data, MAX_INPUT_LENGTH + 1, stdin); //输入数据
 
     int dataLength = strlen(data);
+    if (data[dataLength - 1] == '\n')
+    {
+        data[dataLength - 1] = 0;
+        --dataLength;
+    }
 
     if (!checkAddInput(dataLength))
     {
@@ -210,14 +213,19 @@ void updateInput()
 
     printf("请输入更新后的字符串：");
     Type data[MAX_INPUT_LENGTH + 1] = { 0 };
-    char input[8] = { 0 };
-    sprintf(input, "%%%ds", MAX_INPUT_LENGTH);
 
     rewind(stdin);
-    scanf(input, &data); //输入数据
+    fgets(data, MAX_INPUT_LENGTH + 1, stdin); //输入数据
+
+    int updateLength = strlen(data);
+    if (data[updateLength - 1] == '\n')
+    {
+        data[updateLength - 1] = 0;
+        --updateLength;
+    }
 
     int length = getDataBufLength(&indexInfo);
-    int updateLength = strlen(data);
+    
     if (length < updateLength) //需获取新的存储空间
     {
         //获取新的存储信息
@@ -315,13 +323,16 @@ void findByContentInput()
 {
     printf("请输入需要匹配的字符串：");
     Type data[MAX_INPUT_LENGTH + 1] = { 0 };
-    char input[8] = { 0 };
-    sprintf(input, "%%%ds", MAX_INPUT_LENGTH);
 
     rewind(stdin);
-    scanf(input, &data); //输入数据
+    fgets(data, MAX_INPUT_LENGTH + 1, stdin); //输入数据
 
     int dataLength = strlen(data);
+    if (data[dataLength - 1] == '\n')
+    {
+        data[dataLength - 1] = 0;
+        --dataLength;
+    }
 
     printf("查找结果：\r\n");
     int flag = 0;
@@ -381,6 +392,7 @@ void statisticalWordsView()
     
     printf("统计结果如下: \r\n");
     printf("字符总计为%d个\r\n", totalLetters);
+    int flag = 0;
     for (int i = 0; i < LETTERS_NUM * 2; ++i)
     {
         if (statisticalArr[i])
@@ -396,29 +408,37 @@ void statisticalWordsView()
                     statisticalArr[i], statisticalArr[i] * 100.0 / totalLetters);
             }
         }
-    }
-    printf("\r\n以下字母尚未出现：\r\n");
-    int flag = 0;
-    for (int i = 0; i < LETTERS_NUM * 2; ++i)
-    {
-        if (!statisticalArr[i])
+        else
         {
-            if(flag)
-                printf(",");
-            if (i < LETTERS_NUM)
-            {
-                printf("%c", i + 'a');
-            }
-            else
-            {
-                printf("%c", i - LETTERS_NUM + 'A');
-            }
             flag = 1;
         }
-        if (i == LETTERS_NUM - 1)
+    }
+    
+    if (flag)
+    {
+        printf("\r\n以下字母尚未出现：\r\n");
+        flag = 0;
+        for (int i = 0; i < LETTERS_NUM * 2; ++i)
         {
-            printf("\r\n");
-            flag = 0;
+            if (!statisticalArr[i])
+            {
+                if (flag)
+                    printf(",");
+                if (i < LETTERS_NUM)
+                {
+                    printf("%c", i + 'a');
+                }
+                else
+                {
+                    printf("%c", i - LETTERS_NUM + 'A');
+                }
+                flag = 1;
+            }
+            if (i == LETTERS_NUM - 1)
+            {
+                printf("\r\n");
+                flag = 0;
+            }
         }
     }
     printf("\r\n");
@@ -541,5 +561,5 @@ void autoExpansion()
         }
         find = 0;
     }
-    printf("自动扩容成功\r\n");
+    printf("自动填充成功\r\n");
 }
